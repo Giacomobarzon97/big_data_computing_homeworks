@@ -1,3 +1,13 @@
+//%%%%%%%%%%%%%%%%%%%%%%%%&&&&&&&%%%%%%%%%%%%%
+//%%%%%%% Comments about the results %&%%%%%%%
+//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+//The Exact algorithm was clearly the slowest one but as the name says it returns the best
+//possible solution.
+//The 2-approximation algorithm is strictly dependent on the value of k given as input. By increasing the values of k
+//we get higher execution times but at the same time better approximations.
+//The k-center-based algorithm seems to be best compromise, it gets very good approximations with low execution times
+//even with small values of k
+
 import org.apache.spark.SparkConf;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.mllib.linalg.Vector;
@@ -9,6 +19,7 @@ import java.io.IOException;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.*;
+import static java.lang.Math.sqrt;
 
 public class G48HW2 {
     //%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -16,7 +27,7 @@ public class G48HW2 {
     //%%%%%%%%%%%%%%%%%%%%%%%%%%
     //Defining the random generator
     //Set the SEED constant as you like
-    static long SEED=1231231223;
+    static long SEED=1231829;
     static Random generator=new Random(SEED);
 
     //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -37,11 +48,11 @@ public class G48HW2 {
         return records;
     }
     //Algorithm for calculating the exact maximum distance between two points in the dataset
-    private static double exactMPD(ArrayList<Vector> s){
+    private static double exactMPD(ArrayList<Vector> s) throws IOException {
         double max_distance=-1;
         for(int i=0; i<s.size();i++){
             for(int j=i+1; j<s.size();j++){
-                double current_distance=Vectors.sqdist(s.get(i),s.get(j));
+                double current_distance=sqrt(Vectors.sqdist(s.get(i),s.get(j)));
                 if (current_distance>max_distance) {
                     max_distance=current_distance;
                 }
@@ -63,7 +74,7 @@ public class G48HW2 {
         double max_distance=-1;
         for(int i=0; i<S.size();i++){
             for(int j=0; j<s_subset.size();j++){
-                double current_distance=Vectors.sqdist(S.get(i),s_subset.get(j));
+                double current_distance=sqrt(Vectors.sqdist(S.get(i),s_subset.get(j)));
                 if (current_distance>max_distance) {
                     max_distance=current_distance;
                 }
@@ -83,16 +94,17 @@ public class G48HW2 {
         //initializing a data structure for keeping the minimum distance between
         //a point not selected as center and the center subset
         ArrayList<Double> centers_distances=new ArrayList<>();
-        for(int i=0; i<s_copy.size();i++){
-            centers_distances.add(Vectors.sqdist(s_copy.get(i),centers.get(0)));
+        for(int i=0; i<s_copy.size();i++){//O(|S|)
+            centers_distances.add(sqrt(Vectors.sqdist(s_copy.get(i),centers.get(0))));
         }
         //For cicle which extracts at each iteration the point with the maximum distance
         //to the closest point of the center subset
-        for (int i=1;i<k;i++){
+        //Total Cost: O(k*|S|)
+        for (int i=1;i<k;i++){//O(k)
             double best_distance=-1;
             int best_point=-1;
             //Calculating the point which minimizes the distance with the center subset
-            for(int j=0;j<s_copy.size();j++){
+            for(int j=0;j<s_copy.size();j++){//O(|S|)
                 if (centers_distances.get(j)>best_distance){
                     best_distance=centers_distances.get(j);
                     best_point=j;
@@ -102,8 +114,8 @@ public class G48HW2 {
             centers.add(new_center);
             centers_distances.remove(best_point);
             //Updating the centers_distances data structure
-            for(int j=0;j<centers_distances.size();j++){
-                double new_center_distance=Vectors.sqdist(s_copy.get(j),new_center);
+            for(int j=0;j<centers_distances.size();j++){//O(|S|)
+                double new_center_distance=sqrt(Vectors.sqdist(s_copy.get(j),new_center));
                 if(new_center_distance<centers_distances.get(j)){
                     centers_distances.set(j,new_center_distance);
                 }
