@@ -9,6 +9,7 @@
 //even with small values of k
 
 import org.apache.spark.SparkConf;
+import org.apache.spark.api.java.JavaRDD;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.mllib.linalg.Vector;
 import org.apache.spark.mllib.linalg.Vectors;
@@ -16,10 +17,7 @@ import org.apache.spark.mllib.linalg.Vectors;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
-import java.time.Duration;
-import java.time.Instant;
 import java.util.*;
-import static java.lang.Math.sqrt;
 
 public class G48HW3 {
 
@@ -41,20 +39,62 @@ public class G48HW3 {
         return records;
     }
 
+    private static JavaRDD<Vector> farthestFirstTraversal(Iterator<Vector> pointsRDD, int k){
+        List<Vector> points = pointsRDD.collect();
+        List<Vector> S = new ArrayList<>();
+        S.add(points.remove(generator.nextInt(points.size() - 1)));
+        for(int i=0; i < k-2; i++) {
+            int max = -1;
+            double dist = -1;
+            for(int c = 0; c < S.size(); c++) {
+                for (int p = 0; p < points.size(); p++) {
+                    double actDist = Vectors.sqdist(S.get(c), points.get(p));
+                    if ( actDist > dist ) {
+                        dist = actDist;
+                        max = p;
+                    }
+                }
+            }
+            S.add(points.remove(max));
+        }
+        return pointsRDD;
+    }
+
+    public static Vector readPoint(String point) {
+        return Vectors.dense(Arrays.stream(point.split(",")).mapToDouble(Double::parseDouble).toArray());
+    }
+
+
+    public static void runMapReduce(JavaRDD<Vector> pointsRDD, int k, int L) {
+        JavaRDD<String> res = pointsRDD.mapPartitions(partition -> {
+            System.out.println("aa");
+            farthestFirstTraversal(partition, k);
+            return "aa";
+        });
+        System.out.println("rr");
+    }
 
     public static void main(String[] args) throws IOException {
-        if (args.length != 1) {
-            throw new IllegalArgumentException("USAGE: only 1 parameter required.");
+        if (args.length != 3) {
+            throw new IllegalArgumentException("USAGE: needed path, k, L.");
         }
         SparkConf conf = new SparkConf(true).setAppName("Homework3").setMaster("local").set("spark.testing.memory", "2147480000");
         JavaSparkContext sc = new JavaSparkContext(conf);
         sc.setLogLevel("WARN");
         // Read number of partitions
 
+        long startTime = System.currentTimeMillis();
         String path = args[0];
-        ArrayList<Vector> a = runSequential(readCSV(path), 10);
+        int k = Integer.parseInt(args[1]);
+        int L = Integer.parseInt(args[2]);
+        JavaRDD<Vector> pointsRDD = sc.textFile(path).map(t -> readPoint(t)).repartition(L).cache();
+        long endTime = System.currentTimeMillis();
+        System.out.println("Number of points = " + pointsRDD.collect().size() + "\nk = " + k + "\nL = " + L + "\nInitialization time = " + (endTime - startTime) + " ms" );
+        runMapReduce(pointsRDD, k, L);
 
-        System.out.println(a);
+        //ArrayList<Vector> a = runSequential(readCSV(path), 10);
+
+        //System.out.println(a);
 
     }
 

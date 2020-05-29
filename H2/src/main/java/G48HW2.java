@@ -39,7 +39,7 @@ public class G48HW2 {
         ArrayList<Vector> records=new ArrayList<>();
         try (Scanner scanner = new Scanner(new File(path))) {
             while (scanner.hasNext()) {
-                double[]  values = Arrays.stream(scanner.next().split(","))
+                double[] values = Arrays.stream(scanner.next().split(","))
                         .mapToDouble(Double::parseDouble)
                         .toArray();
                 records.add(Vectors.dense(values));
