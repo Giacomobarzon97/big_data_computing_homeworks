@@ -9,13 +9,13 @@
 //even with small values of k
 
 import org.apache.spark.SparkConf;
+import org.apache.spark.api.java.JavaPairRDD;
 import org.apache.spark.api.java.JavaRDD;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.mllib.linalg.Vector;
 import org.apache.spark.mllib.linalg.Vectors;
+import scala.Tuple2;
 
-import java.io.File;
-import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.util.*;
 
@@ -24,40 +24,58 @@ public class G48HW3 {
     static long SEED=1231829;
     static Random generator=new Random(SEED);
 
+    static final SparkConf conf = new SparkConf(true).setAppName("Homework3").setMaster("local").set("spark.testing.memory", "2147480000");
+    static final  JavaSparkContext sc = new JavaSparkContext(conf);
 
-    //Method which given a path to a CSV file returns an ArrayList list of spark org.apache.spark.mllib package.Spark
-    private static ArrayList<Vector> readCSV(String path) throws FileNotFoundException {
-        ArrayList<Vector> records=new ArrayList<>();
-        try (Scanner scanner = new Scanner(new File(path))) {
-            while (scanner.hasNext()) {
-                double[]  values = Arrays.stream(scanner.next().split(","))
-                        .mapToDouble(Double::parseDouble)
-                        .toArray();
-                records.add(Vectors.dense(values));
-            }
-        }
-        return records;
-    }
-
-    private static JavaRDD<Vector> farthestFirstTraversal(Iterator<Vector> pointsRDD, int k){
-        List<Vector> points = pointsRDD.collect();
+    private static JavaPairRDD<Vector, ArrayList<Vector>> farthestFirstTraversal(Iterator<Object> pointsRDD, int k){
         List<Vector> S = new ArrayList<>();
-        S.add(points.remove(generator.nextInt(points.size() - 1)));
-        for(int i=0; i < k-2; i++) {
+        List<Vector> points = new ArrayList<>();
+        pointsRDD.forEachRemaining(el -> {points.add((Vector)el);});
+        S.add( points.remove(generator.nextInt(points.size() - 1)));
+
+        Map<Vector, Tuple2<Vector, Double>> partition = new HashMap<>();
+
+        // Iterate k-1 times to find other centers
+        for(int i=0; i < k-1; i++) {
             int max = -1;
             double dist = -1;
+            // Find point pi in points that maximizes d(pi, S)
+            // Iterate all centers
             for(int c = 0; c < S.size(); c++) {
+                // Iterate all points in P - S
+                Vector actCenter = S.get(c);
                 for (int p = 0; p < points.size(); p++) {
-                    double actDist = Vectors.sqdist(S.get(c), points.get(p));
+                    Vector actPoint = points.get(p);
+                    double actDist = Vectors.sqdist(actCenter, actPoint);
+                    /*
+                    * Since in each iteration calculates the distance between each point and each center, keep trace
+                    * of closest center to each point instead of calling Partition(P, S) in the end.
+                    */
+                    if(!partition.containsKey(actPoint) || partition.get(actPoint)._2 > actDist )
+                        partition.put(actPoint, new Tuple2<Vector, Double>(actCenter, actDist));
+
                     if ( actDist > dist ) {
                         dist = actDist;
                         max = p;
                     }
                 }
             }
-            S.add(points.remove(max));
+            Vector selected = points.remove(max);
+            // Remove point p that maximizes d(p, S) from points and add to set of centers S
+            S.add(selected);
+            // Remove it also from partition since it becomes a new center and we don't need anymore to know its
+            // distance from centers
+            partition.remove(selected);
         }
-        return pointsRDD;
+        HashMap<Vector, ArrayList<Vector>> res = new HashMap<>();
+        for (Vector c: S)
+            res.put(c, new ArrayList<>());
+        for(Map.Entry<Vector, Tuple2<Vector, Double>> point : partition.entrySet())
+            res.get(point.getValue()._1).add(point.getKey());
+        List<Tuple2<Vector, ArrayList<Vector>>> partitioned = new ArrayList<>();
+        for(Map.Entry<Vector, ArrayList<Vector>> p : res.entrySet())
+            partitioned.add(new Tuple2<>(p.getKey(), p.getValue()));
+        return sc.parallelizePairs(partitioned);
     }
 
     public static Vector readPoint(String point) {
@@ -65,21 +83,20 @@ public class G48HW3 {
     }
 
 
-    public static void runMapReduce(JavaRDD<Vector> pointsRDD, int k, int L) {
-        JavaRDD<String> res = pointsRDD.mapPartitions(partition -> {
-            System.out.println("aa");
-            farthestFirstTraversal(partition, k);
-            return "aa";
+    public static void runMapReduce(JavaRDD<Object> pointsRDD, int k, int L) {
+        JavaRDD<Object> res = pointsRDD.mapPartitions(partition -> {
+            return farthestFirstTraversal(partition, k);
         });
         System.out.println("rr");
+        List<String> a = Arrays.asList("aa", "bb", "cc");
+        Iterator<String> b = a.iterator();
+
     }
 
     public static void main(String[] args) throws IOException {
         if (args.length != 3) {
             throw new IllegalArgumentException("USAGE: needed path, k, L.");
         }
-        SparkConf conf = new SparkConf(true).setAppName("Homework3").setMaster("local").set("spark.testing.memory", "2147480000");
-        JavaSparkContext sc = new JavaSparkContext(conf);
         sc.setLogLevel("WARN");
         // Read number of partitions
 
