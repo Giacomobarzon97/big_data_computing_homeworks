@@ -93,4 +93,3 @@ shadowJar {
     zip64 true
     configurations = [project.configurations.shadowCompile] // Exclude runtime-only path and Spark, which is provided on the cluster
 }
-
