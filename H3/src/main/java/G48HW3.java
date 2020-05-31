@@ -27,10 +27,10 @@ public class G48HW3 {
     static long SEED=1231829;
     static Random generator=new Random(SEED);
 
-    static final SparkConf conf = new SparkConf(true).setAppName("Homework3").setMaster("local").set("spark.testing.memory", "2147480000");
+    static final SparkConf conf = new SparkConf(true).setAppName("Homework3").setMaster("local").set("spark.storage.memoryFraction","1");
     static final  JavaSparkContext sc = new JavaSparkContext(conf);
 
-    //implementation of the kcenter algorithm
+    //copied from HW2
     private static Iterator<Vector> farthestFirstTraversal(Iterator<Vector> pointsRDD, int k){
         //Data structures initialization
         ArrayList<Vector> s_copy= new ArrayList<>();
@@ -73,12 +73,12 @@ public class G48HW3 {
         return centers.iterator();
     }
 
-
+    //converts a string representing a point into a Spark's vector
     public static Vector readPoint(String point) {
         return Vectors.dense(Arrays.stream(point.split(",")).mapToDouble(Double::parseDouble).toArray());
     }
 
-
+    //calculates the average of the distances between the points in pointSet
     public static double measure(List<Vector> pointSet) {
         double sum = 0;
         for(Vector point1: pointSet)
@@ -88,18 +88,26 @@ public class G48HW3 {
         return sum / ((k * ( k - 1 )) / 2);
     }
 
+    //implementation of the methods as requested by HW3
     public static void runMapReduce(JavaRDD<Vector> pointsRDD, int k, int L) {
-        // Calculate time
+
         long startTime = System.currentTimeMillis();
-        // Repartition the JavaRDD
+        //Repartition pointsRDD into L partitions
         JavaRDD<Vector> points = pointsRDD.repartition(L).cache();
-        System.out.println("Number of points = " + pointsRDD.collect().size() + "\nk = " + k + "\nL = " + L + "\nInitialization time = " + (System.currentTimeMillis() - startTime) + " ms" );
+        System.out.println("Number of points = " + pointsRDD.count() + "\nk = " + k + "\nL = " + L + "\nInitialization time = " + (System.currentTimeMillis() - startTime) + " ms" );
+
         startTime = System.currentTimeMillis();
+        //running farthestFirstTraversal algorithm on each partition to find K suitable centers for each partition
         List<Vector> coreset = points.mapPartitions(partition -> farthestFirstTraversal(partition, k)).collect();
         System.out.println("Runtime of Round 1 = " + (System.currentTimeMillis() - startTime) + " ms");
+
         startTime = System.currentTimeMillis();
+        //runs the sequential 2-approximation algorithm for diversity maximization returning k solution points
+        //from the previously selected k*L suitable centers
         List<Vector> centers = runSequential(coreset, k);
-        System.out.println("Runtime of Round 2 = " + (System.currentTimeMillis() - startTime) + " ms\nAverage distance = " + measure(centers));
+        //calculating the average distance between the k centers selected by run sequential algorithm
+        double averageDistance = measure(centers);
+        System.out.println("Runtime of Round 2 = " + (System.currentTimeMillis() - startTime) + " ms\nAverage distance = " + averageDistance);
     }
 
     public static void main(String[] args) throws IOException {
@@ -113,15 +121,7 @@ public class G48HW3 {
         int L = Integer.parseInt(args[2]);
         JavaRDD<Vector> pointsRDD = sc.textFile(path).map(G48HW3::readPoint);
         runMapReduce(pointsRDD, k, L);
-
-        //ArrayList<Vector> a = runSequential(readCSV(path), 10);
-
-        //System.out.println(a);
-
     }
-
-
-
 
     // &&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&
     // METHOD runSequential
@@ -180,9 +180,5 @@ public class G48HW3 {
         return result;
 
     } // END runSequential
-
-
-
-
 
 }
