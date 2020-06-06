@@ -27,7 +27,7 @@ public class G48HW3 {
     static long SEED=1231829;
     static Random generator=new Random(SEED);
 
-    static final SparkConf conf = new SparkConf(true).setAppName("Homework3").setMaster("local").set("spark.storage.memoryFraction","1");
+    static final SparkConf conf = new SparkConf(true).setAppName("Homework3").setMaster("local").set("spark.storage.memoryFraction","1").set("spark.testing.memory", "4147480000");
     static final  JavaSparkContext sc = new JavaSparkContext(conf);
 
     //copied from HW2
@@ -81,11 +81,12 @@ public class G48HW3 {
     //calculates the average of the distances between the points in pointSet
     public static double measure(List<Vector> pointSet) {
         double sum = 0;
-        for(Vector point1: pointSet)
-            for(Vector point2: pointSet)
-                sum += Vectors.sqdist(point1, point2);
         double k = pointSet.size();
-        return sum / ((k * ( k - 1 )) / 2);
+        for(int i = 0; i < k ; i++)
+            for(int j = i + 1; j < k ; j++)
+                sum += sqrt(Vectors.sqdist(pointSet.get(i), pointSet.get(j)));
+
+        return sum / ((k * (k-1))/2);
     }
 
     //implementation of the methods as requested by HW3
