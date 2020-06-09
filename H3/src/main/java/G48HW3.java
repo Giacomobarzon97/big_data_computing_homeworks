@@ -27,9 +27,6 @@ public class G48HW3 {
     static long SEED=1231829;
     static Random generator=new Random(SEED);
 
-    static final SparkConf conf = new SparkConf(true).setAppName("Homework3").setMaster("local").set("spark.storage.memoryFraction","1").set("spark.testing.memory", "4147480000");
-    static final  JavaSparkContext sc = new JavaSparkContext(conf);
-
     //copied from HW2
     private static Iterator<Vector> farthestFirstTraversal(Iterator<Vector> pointsRDD, int k){
         //Data structures initialization
@@ -94,10 +91,8 @@ public class G48HW3 {
 
         long startTime = System.currentTimeMillis();
         //Repartition pointsRDD into L partitions
-        JavaRDD<Vector> points = pointsRDD.repartition(L).cache();
-        System.out.println("Number of points = " + pointsRDD.count() + "\nk = " + k + "\nL = " + L + "\nInitialization time = " + (System.currentTimeMillis() - startTime) + " ms" );
+        JavaRDD<Vector> points = pointsRDD.repartition(L);
 
-        startTime = System.currentTimeMillis();
         //running farthestFirstTraversal algorithm on each partition to find K suitable centers for each partition
         List<Vector> coreset = points.mapPartitions(partition -> farthestFirstTraversal(partition, k)).collect();
         System.out.println("Runtime of Round 1 = " + (System.currentTimeMillis() - startTime) + " ms");
@@ -112,6 +107,10 @@ public class G48HW3 {
     }
 
     public static void main(String[] args) throws IOException {
+
+        SparkConf conf = new SparkConf(true).setAppName("Homework3");
+        JavaSparkContext sc = new JavaSparkContext(conf);
+
         if (args.length != 3) {
             throw new IllegalArgumentException("USAGE: needed path, k, L.");
         }
@@ -120,7 +119,10 @@ public class G48HW3 {
         String path = args[0];
         int k = Integer.parseInt(args[1]);
         int L = Integer.parseInt(args[2]);
-        JavaRDD<Vector> pointsRDD = sc.textFile(path).map(G48HW3::readPoint);
+
+        long startTime = System.currentTimeMillis();
+        JavaRDD<Vector> pointsRDD = sc.textFile(path).map(G48HW3::readPoint).cache();
+        System.out.println("Number of points = " + pointsRDD.count() + "\nk = " + k + "\nL = " + L + "\nInitialization time = " + (System.currentTimeMillis() - startTime) + " ms" );
         runMapReduce(pointsRDD, k, L);
     }
 
